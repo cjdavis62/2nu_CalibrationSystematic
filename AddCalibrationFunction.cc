@@ -19,30 +19,44 @@
 #include <iostream>
 #include "THStack.h"
 #include "TMath.h"
+#include <sstream>
+#include <fstream>
+
 
 using namespace std;
 
 // Read in the data file with all the shifts at certain energies
 // Take the shift as being symmetric (conservative)
-double ReadShift() {
+std::pair<std::vector<double>, std::vector<double> > ReadShift(std::string Shifted_file_name) {
+  // structures to read in the data
   stringstream ss;
   string line;
-  
+
   double energy, energyShift, energyShiftSigma;
   double max_shift;
+
+  // store all the data in vectors
+  std::vector<double> energy_vector, energyShift_vector;
+
+  // Read the file
+  ifstream shiftFile( const_cast<char*>(Shifted_file_name.c_str()));
   
-  ifstream shiftFile("EnergyShift.txt");
   while (getline(shiftFile, line)) {
     ss.str(line);
     ss >> energy >> energyShift >> energyShiftSigma;
     ss.str("");
     ss.clear();
-    cout << energy << " " << energyShift << " " << energyShiftSigma << endl;
 
+    //cout << energy << " " << energyShift << " " << energyShiftSigma << endl;
+
+    // use the biggest delta as the max_shift here. Make it symmetric to be conservative
     max_shift = TMath::Max(TMath::Abs(energyShift + energyShiftSigma), TMath::Abs(energyShift - energyShiftSigma));
-    cout << max_shift << endl;
+    //cout << max_shift << endl;
+    energy_vector.push_back(energy);
+    energyShift_vector.push_back(max_shift);
   }
-    return max_shift;
+  // return the two vectors as a pair
+  return std::make_pair(energy_vector, energyShift_vector);
 }
 
 
@@ -54,7 +68,18 @@ double EnergyEdit(double energy_data) {
 
 void AddCalibrationFunction() {
 
-  ReadShift();
+  // The file containing the energy shifts
+  std::string shifted_filename = "EnergyShift.txt";
+
+  // Read the file and record the data as a vector in a pair
+  // Format looks like
+  // || energy | shifted energy ||
+  std::pair<std::vector<double>, std::vector<double> > shifted_pair = ReadShift(shifted_filename);
+
+  std::vector<double> energy_vector = shifted_pair.first;
+  std::vector<double> energyShift_vector = shifted_pair.second;
+
+  cout << energy_vector[0] << " " << energyShift_vector[0] << endl;
   
   // Read list of filenames
   
