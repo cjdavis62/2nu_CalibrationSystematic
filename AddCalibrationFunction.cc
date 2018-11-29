@@ -1,4 +1,3 @@
-
 #ifndef __CINT__
 #include "RooGlobalFunc.h"
 #endif
@@ -59,10 +58,26 @@ std::pair<std::vector<double>, std::vector<double> > ReadShift(std::string Shift
   return std::make_pair(energy_vector, energyShift_vector);
 }
 
+std::vector<std::string> ReadFilenames(std::string Filename){
+  stringstream ss;
+  std::string line;
+  std::string MC_file;
+  std::vector<std::string> file_vector;
+  
+  ifstream file(const_cast<char*>(Filename.c_str()));
+  while(getline(file, line)) {
+    ss.str(line);
+    ss >> MC_file;
+    
+    file_vector.push_back(MC_file);
+  }
+  return file_vector;
+}
 
 // Given a certain energy to the events, give a keV shift
-double EnergyEdit(double energy_data) {
+double EnergyEdit(double energy_data, int up_or_down) {
 
+  return 0;
   
 }
 
@@ -82,6 +97,7 @@ void AddCalibrationFunction() {
   cout << energy_vector[0] << " " << energyShift_vector[0] << endl;
   
   // Read list of filenames
+  // std::vector<std::string> ReadFilenames(std::string Filename)
   
   // Find the MC file to read
   TFile * mcFile = new TFile("/projects/cuore/simulation/MC_test.root", "update");
@@ -95,44 +111,68 @@ void AddCalibrationFunction() {
   mcTree->SetBranchStatus("MultipletIndex", 1);
   
   // Get the branch addresses
-  double Ener2_data;
-  double ESum2_data;
+  double Ener2_data, ESum2_data;
   Short_t Multiplicity;
   Short_t MultipletIndex;
-
+  
   mcTree->SetBranchAddress("Ener2", &Ener2_data);
   mcTree->SetBranchAddress("ESum2", &ESum2_data);
   mcTree->SetBranchAddress("Multiplicity", &Multiplicity);
   mcTree->SetBranchAddress("MultipletIndex", &MultipletIndex);
 
-  // Create new branches for the MC file
-
+  // Create new tree for the MC file
+  double Ener2_shift_up, Ener2_shift_down, ESum2_shift_up, ESum2_shift_down;
+  TTree* friendTree = new TTree("shiftedEnergyTree", "");
+  friendTree->Branch("Ener2_shift_up", &Ener2_shift_up, "Ener2_shift_up/D");
+  friendTree->Branch("Ener2_shift_down", &Ener2_shift_down, "Ener2_shift_down/D");
+  friendTree->Branch("ESum2_shift_up", &ESum2_shift_up, "ESum2_shift_up/D");
+  friendTree->Branch("ESum2_shift_down", &ESum2_shift_down, "ESum2_shift_down/D");
+  
+  // The new energies
+  double ESum_shift_up, ESum_shift_down;
+  vector<double> energy_shift_up, energy_shift_down;
+  
+  bool previously_edited = false;
   
   // Grab all the events in the file
   Long64_t e = 0;
-  while(e < mcTree->GetEntries()) {
-    mcTree->GetEntry(e);
+  while (e < mcTree->GetEntries()) {
 
-    // Treat high multiplicity events seperately
-    if(Multiplicity == 1) {
-      // Edit the energies for totalEnergy and Energy
-      // Fill the tree
-    }
-    // If Multiplicity > 1, need to look at all the events now to adjust ESum
-    else {
-      for (int i = 1; i <= Multiplicity; i++) {
-	// Edit the energies for totalEnergy and Energy of each event
+    // Start the loop for each new set of Multiplets
+    if (energy_shift_up.empty())
+      {
+	// Set the Total Energy to 0
+	ESum_shift_up = 0;
+	ESum_shift_down = 0;
+	int i = 0;
+	while (true) {
+	  // Get the entry in the root file
+	  mcTree->GetEntry(e + i);
+	  // Edit the energies into a vector. The vector will have size == Multiplicity by the end of each set
+	  energy_shift_up.push_back(EnergyEdit(Ener2_data, 1));
+	  energy_shift_down.push_back(EnergyEdit(Ener2_data, -1));
+	  // Add to the sum
+	  ESum_shift_up += energy_shift_up.back();
+	  ESum_shift_down -= energy_shift_down.back();
+	  i++;
+	  if (i == Multiplicity) break;
+	}
       }
-      // Sum the new totalEnergy for the events
-      // Fill the tree for each
-      
-    }
-    //cout << e << endl;
+
+    // Pop out the first element of the vectors to get the energy of the event
+    Ener2_shift_up = energy_shift_up[0];
+    Ener2_shift_down = energy_shift_down[0];
+    energy_shift_up.erase(energy_shift_up.begin());
+    energy_shift_down.erase(energy_shift_down.begin());
+
+    // Fill the tree for each
+    friendTree->Fill();
+    // Go to next event
+    e++;
   }
-  
-  
 
   // Rewrite the MC file
-
-
+  friendTree->Write();
+  mcFile->Close();
+  delete mcFile;
 }
