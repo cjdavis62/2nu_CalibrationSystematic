@@ -20,13 +20,14 @@
 #include "TMath.h"
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 
 
 using namespace std;
 
 // Read in the data file with all the shifts at certain energies
 // Take the shift as being symmetric (conservative)
-std::pair<std::vector<double>, std::vector<double> > ReadShift(std::string Shifted_file_name) {
+std::map<double, double> ReadShift(std::string Shifted_file_name) {
   // structures to read in the data
   stringstream ss;
   string line;
@@ -34,9 +35,9 @@ std::pair<std::vector<double>, std::vector<double> > ReadShift(std::string Shift
   double energy, energyShift, energyShiftSigma;
   double max_shift;
 
-  // store all the data in vectors
-  std::vector<double> energy_vector, energyShift_vector;
-
+  // Do instead as a map
+  std::map<double, double> energy_shift_map;
+  
   // Read the file
   ifstream shiftFile( const_cast<char*>(Shifted_file_name.c_str()));
   
@@ -51,12 +52,12 @@ std::pair<std::vector<double>, std::vector<double> > ReadShift(std::string Shift
     // use the biggest delta as the max_shift here. Make it symmetric to be conservative
     max_shift = TMath::Max(TMath::Abs(energyShift + energyShiftSigma), TMath::Abs(energyShift - energyShiftSigma));
     //cout << max_shift << endl;
-    energy_vector.push_back(energy);
-    energyShift_vector.push_back(max_shift);
+    energy_shift_map[energy] = max_shift;
   }
-  // return the two vectors as a pair
-  return std::make_pair(energy_vector, energyShift_vector);
+  // return the map of energies
+  return energy_shift_map;
 }
+
 
 std::vector<std::string> ReadFilenames(std::string Filename){
   stringstream ss;
@@ -75,10 +76,24 @@ std::vector<std::string> ReadFilenames(std::string Filename){
 }
 
 // Given a certain energy to the events, give a keV shift
-double EnergyEdit(double energy_data, int up_or_down) {
+double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data, int up_or_down) {
 
-  return 0;
+  // Because the energy shift map has the data as 0.5, 1.5, etc, and floor and ceil functions are great, shift all the data by 0.5 up so we can use them
+  energy_data = energy_data + 0.5;
+
+  double energy_data_low = std::floor(energy_data) - 0.5;
+  double energy_data_high = std::ceil(energy_data) - 0.5;
+
+  // Restore the data to its original value
+  energy_data = energy_data - 0.5;
+
+  // linearly interpolate the values of the function between these two
+  double energy_shift_interpolated = energy_shift_map[energy_data_low] + (energy_shift_map[energy_data_high] - energy_shift_map[energy_data_low]) * (energy_data - energy_data_low);
   
+  if (up_or_down == 1)
+    return energy_data + energy_shift_interpolated;
+  else if (up_or_down = -1)
+    return energy_data - energy_shift_interpolated;
 }
 
 void AddCalibrationFunction() {
@@ -86,16 +101,11 @@ void AddCalibrationFunction() {
   // The file containing the energy shifts
   std::string shifted_filename = "EnergyShift.txt";
 
-  // Read the file and record the data as a vector in a pair
+  // Read the file and record the data as a map
   // Format looks like
   // || energy | shifted energy ||
-  std::pair<std::vector<double>, std::vector<double> > shifted_pair = ReadShift(shifted_filename);
+  std::map<double, double> energy_shift_map = ReadShift(shifted_filename);
 
-  std::vector<double> energy_vector = shifted_pair.first;
-  std::vector<double> energyShift_vector = shifted_pair.second;
-
-  cout << energy_vector[0] << " " << energyShift_vector[0] << endl;
-  
   // Read list of filenames
   // std::vector<std::string> ReadFilenames(std::string Filename)
   
@@ -121,41 +131,66 @@ void AddCalibrationFunction() {
   mcTree->SetBranchAddress("MultipletIndex", &MultipletIndex);
 
   // Create new tree for the MC file
-  double Ener2_shift_up, Ener2_shift_down, ESum2_shift_up, ESum2_shift_down;
-  TTree* friendTree = new TTree("shiftedEnergyTree", "");
+  double Ener2_shift_up, Ener2_shift_down;
+  double ESum2_shift_up = 0;
+  double ESum2_shift_down = 0 ;
+
+  // Make sure the TTree doesn't have any friends with the same name. It can only be friends with the new kid.
+  TTree* friendTree;
+  if ((friendTree = (TTree*) mcFile->Get("shiftedEnergyTree")) != NULL) {
+    mcTree->RemoveFriend(friendTree);
+    friendTree->Delete("all");
+  }
+  // Make the new friend TTree
+  friendTree = new TTree("shiftedEnergyTree", "");
   friendTree->Branch("Ener2_shift_up", &Ener2_shift_up, "Ener2_shift_up/D");
   friendTree->Branch("Ener2_shift_down", &Ener2_shift_down, "Ener2_shift_down/D");
   friendTree->Branch("ESum2_shift_up", &ESum2_shift_up, "ESum2_shift_up/D");
   friendTree->Branch("ESum2_shift_down", &ESum2_shift_down, "ESum2_shift_down/D");
   
-  // The new energies
-  double ESum_shift_up, ESum_shift_down;
+  // Store the energies in a vector so that we can deal with Multiplicity > 1 events
   vector<double> energy_shift_up, energy_shift_down;
   
   bool previously_edited = false;
   
   // Grab all the events in the file
   Long64_t e = 0;
+  double percent;
+  int i;
   while (e < mcTree->GetEntries()) {
 
+    // Tell the user how far we are through the MC file every 10k events
+    percent = (double(e) / mcTree->GetEntries()) * 100.0;
+    if (e % 10000 == 0) {
+      std::cout << "Entries read: " << e << " of" << mcTree->GetEntries() << " | " << std::fixed <<  std::setprecision(4) << percent << "% complete" << "\r" << std::flush;
+    }
+    
     // Start the loop for each new set of Multiplets
     if (energy_shift_up.empty())
       {
 	// Set the Total Energy to 0
-	ESum_shift_up = 0;
-	ESum_shift_down = 0;
-	int i = 0;
+	ESum2_shift_up = 0;
+	ESum2_shift_down = 0;
+	i = 0;
 	while (true) {
+	  //std::cout << "i: " << i << " Multiplicity: " << int(Multiplicity) << std::endl;
 	  // Get the entry in the root file
 	  mcTree->GetEntry(e + i);
 	  // Edit the energies into a vector. The vector will have size == Multiplicity by the end of each set
-	  energy_shift_up.push_back(EnergyEdit(Ener2_data, 1));
-	  energy_shift_down.push_back(EnergyEdit(Ener2_data, -1));
+	  energy_shift_up.push_back(EnergyEdit(energy_shift_map, Ener2_data, 1));
+	  energy_shift_down.push_back(EnergyEdit(energy_shift_map, Ener2_data, -1));
 	  // Add to the sum
-	  ESum_shift_up += energy_shift_up.back();
-	  ESum_shift_down -= energy_shift_down.back();
-	  i++;
-	  if (i == Multiplicity) break;
+	  ESum2_shift_up += energy_shift_up.back();
+	  ESum2_shift_down += energy_shift_down.back();
+	  // Check if we need to stop or continue
+	  if (i + 1 >= int(Multiplicity))
+	    {
+	      break;
+	    }
+	  else
+	    {
+	      i++;
+	    }
 	}
       }
 
@@ -164,13 +199,14 @@ void AddCalibrationFunction() {
     Ener2_shift_down = energy_shift_down[0];
     energy_shift_up.erase(energy_shift_up.begin());
     energy_shift_down.erase(energy_shift_down.begin());
-
+    
     // Fill the tree for each
     friendTree->Fill();
     // Go to next event
     e++;
   }
-
+  std::cout << "\n";
+  
   // Rewrite the MC file
   friendTree->Write();
   mcFile->Close();
