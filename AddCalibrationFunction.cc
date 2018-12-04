@@ -1,3 +1,12 @@
+/* this script reads in a list of MC files and applies a positive and negative calibration shift to them
+compile with:
+> g++ -o AddCalibrationFunction AddCalibrationFunction.cc `root-config --cflags --glibs`
+and run with:
+> ./AddCalibrationFunction
+The List of MC files should be in the same directory and named 'MC_List.txt'
+And the text file containing the data for the energy shift should be in the same directory and named 'EnergyShift.txt'
+*/
+
 #ifndef __CINT__
 #include "RooGlobalFunc.h"
 #endif
@@ -21,7 +30,6 @@
 #include <sstream>
 #include <fstream>
 #include <iomanip>
-
 
 using namespace std;
 
@@ -47,37 +55,50 @@ std::map<double, double> ReadShift(std::string Shifted_file_name) {
     ss.str("");
     ss.clear();
 
-    //cout << energy << " " << energyShift << " " << energyShiftSigma << endl;
-
     // use the biggest delta as the max_shift here. Make it symmetric to be conservative
     max_shift = TMath::Max(TMath::Abs(energyShift + energyShiftSigma), TMath::Abs(energyShift - energyShiftSigma));
-    //cout << max_shift << endl;
     energy_shift_map[energy] = max_shift;
   }
+  shiftFile.close();
   // return the map of energies
   return energy_shift_map;
 }
 
-
-std::vector<std::string> ReadFilenames(std::string Filename){
+// Read the txt file storing the name and path to the MC files. In the text file, the first line is the path, and the lines after are each of the files
+// Returns the full path to the MC files as a vector
+std::vector<std::string> ReadFilenames(std::string Filename) {
   stringstream ss;
   std::string line;
   std::string MC_file;
+  std::string MC_dir;
   std::vector<std::string> file_vector;
   
   ifstream file(const_cast<char*>(Filename.c_str()));
+  // Read in the first line to get the directory
+  int i = 0;
   while(getline(file, line)) {
-    ss.str(line);
-    ss >> MC_file;
-    
-    file_vector.push_back(MC_file);
+    if (i == 0)
+      {
+	ss.str(line);
+	ss >> MC_dir;
+	i++;
+      }
+    else
+      {
+	ss.str(line);
+	ss >> MC_file;
+	file_vector.push_back(MC_dir + "/" + MC_file);
+      }
+    ss.str("");
+    ss.clear();
   }
+  file.close();
   return file_vector;
 }
 
 // Given a certain energy to the events, give a keV shift
 double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data, int up_or_down) {
-
+  
   // Because the energy shift map has the data as 0.5, 1.5, etc, and floor and ceil functions are great, shift all the data by 0.5 up so we can use them
   energy_data = energy_data + 0.5;
 
@@ -96,21 +117,12 @@ double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data,
     return energy_data - energy_shift_interpolated;
 }
 
-void AddCalibrationFunction() {
+void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy_shift_map) {
 
-  // The file containing the energy shifts
-  std::string shifted_filename = "EnergyShift.txt";
-
-  // Read the file and record the data as a map
-  // Format looks like
-  // || energy | shifted energy ||
-  std::map<double, double> energy_shift_map = ReadShift(shifted_filename);
-
-  // Read list of filenames
-  // std::vector<std::string> ReadFilenames(std::string Filename)
+  std::cout << "Reading file: " << MC_file << std::endl;
   
-  // Find the MC file to read
-  TFile * mcFile = new TFile("/projects/cuore/simulation/MC_test.root", "update");
+  // Get the MC file to read
+  TFile * mcFile = new TFile(const_cast<char*>(MC_file.c_str()), "update");
   TTree * mcTree = (TTree*) mcFile->Get("outTree");
 
   // Tell the reader which branches are interesting
@@ -211,4 +223,27 @@ void AddCalibrationFunction() {
   friendTree->Write();
   mcFile->Close();
   delete mcFile;
+}
+
+
+int main() {
+
+  // The file containing the energy shifts
+  std::string shifted_filename = "EnergyShift.txt";
+
+  // Read the file and record the data as a map
+  // Format looks like
+  // || energy | shifted energy ||
+  std::map<double, double> energy_shift_map = ReadShift(shifted_filename);
+
+  // The file containing the MC directory and file names
+  std::string MC_filename = "MC_List.txt";
+  std::vector<std::string> MC_file_vector = ReadFilenames(MC_filename);
+
+  vector<std::string>::iterator MC_file;
+  for (MC_file = MC_file_vector.begin(); MC_file < MC_file_vector.end(); MC_file++)
+    {
+      AddCalibrationFunction(*MC_file, energy_shift_map);
+    }
+  
 }
