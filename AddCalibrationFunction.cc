@@ -34,18 +34,20 @@ And the text file containing the data for the energy shift should be in the same
 using namespace std;
 
 // Read in the data file with all the shifts at certain energies
-// Take the shift as being symmetric (conservative)
-std::map<double, double> ReadShift(std::string Shifted_file_name) {
+// Returns a pair of maps, one with the energy shifted up, the other down
+std::pair<std::map<double, double>, std::map<double, double> > ReadShift(std::string Shifted_file_name) {
   // structures to read in the data
   stringstream ss;
   string line;
 
   double energy, energyShift, energyShiftSigma;
-  double max_shift;
+  double shift_up;
+  double shift_down;
 
   // Do instead as a map
-  std::map<double, double> energy_shift_map;
-  
+  std::map<double, double> energy_shift_up;
+  std::map<double, double> energy_shift_down;
+
   // Read the file
   ifstream shiftFile( const_cast<char*>(Shifted_file_name.c_str()));
   
@@ -54,14 +56,17 @@ std::map<double, double> ReadShift(std::string Shifted_file_name) {
     ss >> energy >> energyShift >> energyShiftSigma;
     ss.str("");
     ss.clear();
-
+        
     // use the biggest delta as the max_shift here. Make it symmetric to be conservative
-    max_shift = TMath::Max(TMath::Abs(energyShift + energyShiftSigma), TMath::Abs(energyShift - energyShiftSigma));
-    energy_shift_map[energy] = max_shift;
+    shift_up = energyShift + energyShiftSigma;
+    shift_down = energyShift - energyShiftSigma;
+    
+    energy_shift_up[energy] = shift_up;
+    energy_shift_down[energy] = shift_down;
   }
   shiftFile.close();
-  // return the map of energies
-  return energy_shift_map;
+  // return the map of energies as a pair
+  return make_pair(energy_shift_up, energy_shift_down);
 }
 
 // Read the txt file storing the name and path to the MC files. In the text file, the first line is the path, and the lines after are each of the files
@@ -97,8 +102,8 @@ std::vector<std::string> ReadFilenames(std::string Filename) {
 }
 
 // Given a certain energy to the events, give a keV shift
-double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data, int up_or_down) {
-  
+double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data) {
+
   // Because the energy shift map has the data as 0.5, 1.5, etc, and floor and ceil functions are great, shift all the data by 0.5 up so we can use them
   energy_data = energy_data + 0.5;
 
@@ -111,13 +116,10 @@ double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data,
   // linearly interpolate the values of the function between these two
   double energy_shift_interpolated = energy_shift_map[energy_data_low] + (energy_shift_map[energy_data_high] - energy_shift_map[energy_data_low]) * (energy_data - energy_data_low);
   
-  if (up_or_down == 1)
-    return energy_data + energy_shift_interpolated;
-  else if (up_or_down = -1)
-    return energy_data - energy_shift_interpolated;
+  return energy_data + energy_shift_interpolated;
 }
-
-void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy_shift_map) {
+// Adds the shift to the data file
+void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy_shift_up_map, std::map<double, double> energy_shift_down_map) {
 
   std::cout << "Reading file: " << MC_file << std::endl;
   
@@ -189,8 +191,8 @@ void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy
 	  // Get the entry in the root file
 	  mcTree->GetEntry(e + i);
 	  // Edit the energies into a vector. The vector will have size == Multiplicity by the end of each set
-	  energy_shift_up.push_back(EnergyEdit(energy_shift_map, Ener2_data, 1));
-	  energy_shift_down.push_back(EnergyEdit(energy_shift_map, Ener2_data, -1));
+	  energy_shift_up.push_back(EnergyEdit(energy_shift_up_map, Ener2_data));
+	  energy_shift_down.push_back(EnergyEdit(energy_shift_down_map, Ener2_data));
 	  // Add to the sum
 	  ESum2_shift_up += energy_shift_up.back();
 	  ESum2_shift_down += energy_shift_down.back();
@@ -234,8 +236,10 @@ int main() {
   // Read the file and record the data as a map
   // Format looks like
   // || energy | shifted energy ||
-  std::map<double, double> energy_shift_map = ReadShift(shifted_filename);
-
+  std::pair<std::map<double, double>, std::map<double, double> >  energy_shift_map_pair = ReadShift(shifted_filename);
+  std::map<double, double> energy_shift_up = energy_shift_map_pair.first;
+  std::map<double, double> energy_shift_down = energy_shift_map_pair.second;
+  
   // The file containing the MC directory and file names
   std::string MC_filename = "MC_List.txt";
   std::vector<std::string> MC_file_vector = ReadFilenames(MC_filename);
@@ -243,7 +247,7 @@ int main() {
   vector<std::string>::iterator MC_file;
   for (MC_file = MC_file_vector.begin(); MC_file < MC_file_vector.end(); MC_file++)
     {
-      AddCalibrationFunction(*MC_file, energy_shift_map);
+      AddCalibrationFunction(*MC_file, energy_shift_up, energy_shift_down);
     }
   
 }
