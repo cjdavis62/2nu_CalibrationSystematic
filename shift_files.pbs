@@ -1,0 +1,14 @@
+#PBS -N adjust_mc_files_calibration
+#PBS -q cuore
+#PBS -l walltime=12:00:00 nodes=1:ppn=1
+#PBS -M christopher.davis@yale.edu
+#PBS -m ae
+#PBS -o localhost:/nfs/cuore1/scratch/cjdavis/MajoronSensitivity/log/
+#PBS -e localhost:/nfs/cuore1/scratch/cjdavis/MajoronSensitivity/log/
+#PBS -t 2-61%60
+
+taskID=$PBS_ARRAYID
+source /cuore/soft/root_v5.34.34/bin/thisroot.sh
+
+cd /nfs/cuore1/scratch/cjdavis/2nu_CalibrationSystematic
+python3.5 read_files.py -m MC_List.txt -i $PBS_ARRAYID
