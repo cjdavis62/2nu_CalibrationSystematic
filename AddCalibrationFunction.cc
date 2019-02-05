@@ -176,7 +176,7 @@ void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy
     // Tell the user how far we are through the MC file every 10k events
     percent = (double(e) / mcTree->GetEntries()) * 100.0;
     if (e % 10000 == 0) {
-      std::cout << "Entries read: " << e << " of" << mcTree->GetEntries() << " | " << std::fixed <<  std::setprecision(4) << percent << "% complete" << "\r" << std::flush;
+      std::cout << "Entries read: " << e << " of " << mcTree->GetEntries() << " | " << std::fixed <<  std::setprecision(4) << percent << "% complete" << "\r" << std::flush;
     }
     
     // Start the loop for each new set of Multiplets
@@ -228,8 +228,15 @@ void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy
 }
 
 
-int main() {
-
+int main(int argc, char **argv) {
+  
+  if (argc !=2) {
+    std::cout << "usage: ./AddCalibrationFunction MC_file.root" << std::endl;
+    exit(1);
+  }
+  
+  std::string mc_file = argv[1]; // The mc file is passed through the arguments of the function by the python script
+  
   // The file containing the energy shifts
   std::string shifted_filename = "EnergyShift.txt";
 
@@ -240,14 +247,6 @@ int main() {
   std::map<double, double> energy_shift_up = energy_shift_map_pair.first;
   std::map<double, double> energy_shift_down = energy_shift_map_pair.second;
   
-  // The file containing the MC directory and file names
-  std::string MC_filename = "MC_List.txt";
-  std::vector<std::string> MC_file_vector = ReadFilenames(MC_filename);
-
-  vector<std::string>::iterator MC_file;
-  for (MC_file = MC_file_vector.begin(); MC_file < MC_file_vector.end(); MC_file++)
-    {
-      AddCalibrationFunction(*MC_file, energy_shift_up, energy_shift_down);
-    }
+  AddCalibrationFunction(mc_file, energy_shift_up, energy_shift_down);
   
 }
