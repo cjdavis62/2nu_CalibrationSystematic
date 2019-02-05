@@ -4,3 +4,4 @@
 *.pdf
 *.C
 AddCalibrationFunction
+log/*
