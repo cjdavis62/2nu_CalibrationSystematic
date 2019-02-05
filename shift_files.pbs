@@ -3,8 +3,8 @@
 #PBS -l walltime=12:00:00 nodes=1:ppn=1
 #PBS -M christopher.davis@yale.edu
 #PBS -m ae
-#PBS -o localhost:/nfs/cuore1/scratch/cjdavis/MajoronSensitivity/log/
-#PBS -e localhost:/nfs/cuore1/scratch/cjdavis/MajoronSensitivity/log/
+#PBS -o localhost:/nfs/cuore1/scratch/cjdavis/2nu_CalibrationSystematic/log/
+#PBS -e localhost:/nfs/cuore1/scratch/cjdavis/2nu_CalibrationSystematic/log/
 #PBS -t 2-61%60
 
 taskID=$PBS_ARRAYID
