@@ -1,10 +1,10 @@
 /* this script reads in a list of MC files and applies a positive and negative calibration shift to them
 compile with:
 > g++ -o AddCalibrationFunction AddCalibrationFunction.cc `root-config --cflags --glibs`
-and run with:
-> ./AddCalibrationFunction
-The List of MC files should be in the same directory and named 'MC_List.txt'
-And the text file containing the data for the energy shift should be in the same directory and named 'EnergyShift.txt'
+and run with
+> ./AddCalibrationFunction mc_file
+
+The text file containing the data for the energy shift should be in the same directory and named 'EnergyShift.txt'
 */
 
 #ifndef __CINT__
