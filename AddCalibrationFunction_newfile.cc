@@ -120,12 +120,18 @@ double EnergyEdit(std::map<double, double> energy_shift_map, double energy_data)
   return energy_data + energy_shift_interpolated;
 }
 // Adds the shift to the data file
-void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy_shift_up_map, std::map<double, double> energy_shift_down_map, int split, int number_of_splits) {
+void AddCalibrationFunction(std::string MC_file, std::string directory, std::map<double, double> energy_shift_up_map, std::map<double, double> energy_shift_down_map, int split, int number_of_splits) {
 
   std::cout << "Reading file: " << MC_file << std::endl;
   
   // Get the MC file to read
   TFile * mcFile = new TFile(const_cast<char*>(MC_file.c_str()), "READ");
+  std::string outfile_name;
+  stringstream ss;
+  ss << split;
+  outfile_name = directory + "/" + "root_" +  ss.str();
+  TFile * outFile = new TFile(const_cast<char*>(outfile_name.c_str()), "RECREATE");
+  
   TTree * mcTree = (TTree*) mcFile->Get("outTree");
   TTree * exclChTree = (TTree*) mcFile->Get("exclChTree");
 
@@ -154,11 +160,6 @@ void AddCalibrationFunction(std::string MC_file, std::map<double, double> energy
   exclChTree->SetBranchAddress("Included", &Included_data);
 
 
-  std::string outfile_name;
-  stringstream ss;
-  ss << split;
-  outfile_name = MC_file + "_" +  ss.str();
-  TFile * outFile = new TFile(const_cast<char*>(outfile_name.c_str()), "RECREATE");
   TTree * outTree = new TTree("outTree", "outTree");
   TTree * outexclChTree = new TTree("exclChTree", "exclChTree");
   TTree * outFriendTree = new TTree("shiftedEnergyTree", "shiftedEnergyTree");
@@ -303,8 +304,8 @@ Layer = Layer_data;
 
 int main(int argc, char **argv) {
   
-  if (argc !=4) {
-    std::cout << "usage: ./AddCalibrationFunction MC_file.root split number_of_splits" << std::endl;
+  if (argc !=5) {
+    std::cout << "usage: ./AddCalibrationFunction MC_file.root split number_of_splits directory" << std::endl;
     exit(1);
   }
   
@@ -318,7 +319,9 @@ int main(int argc, char **argv) {
   ss << argv[3];
   int number_of_splits;
   ss >> number_of_splits;  // the total number of splits
-
+  ss.str("");
+  ss.clear();
+  std::string directory = argv[4];
   // The file containing the energy shifts
   std::string shifted_filename = "EnergyShift.txt";
 
@@ -329,6 +332,6 @@ int main(int argc, char **argv) {
   std::map<double, double> energy_shift_up = energy_shift_map_pair.first;
   std::map<double, double> energy_shift_down = energy_shift_map_pair.second;
   
-  AddCalibrationFunction(mc_file, energy_shift_up, energy_shift_down, split, number_of_splits);
+  AddCalibrationFunction(mc_file, directory, energy_shift_up, energy_shift_down, split, number_of_splits);
   
 }
