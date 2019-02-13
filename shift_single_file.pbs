@@ -7,12 +7,10 @@
 #PBS -e localhost:/nfs/cuore1/scratch/cjdavis/2nu_CalibrationSystematic/log/
 #PBS -t 1-120%120
 
-if [ -f /etc/bashrc ]; then
-   . /etc/bashrc
-fi
+source /cuore/soft/bin/diana_env.sh
 
 taskID=$PBS_ARRAYID
 source /cuore/soft/root_v5.34.34/bin/thisroot.sh
 
 cd /nfs/cuore1/scratch/cjdavis/2nu_CalibrationSystematic
-python3.5 read_files.py -m MC_List.txt -n $PBS_ARRAYID -s 100
+python3.5 read_single_file_split.py -m MC_List_short.txt -n $PBS_ARRAYID -s 120
