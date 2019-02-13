@@ -137,7 +137,7 @@ void AddCalibrationFunction(std::string MC_file, std::string directory, std::map
 
  
   // Tell the reader which branches are interesting
-  mcTree->SetBranchStatus("*", 0);
+  mcTree->SetBranchStatus("*", 1);
   mcTree->SetBranchStatus("Ener2", 1);
   mcTree->SetBranchStatus("ESum2", 1);
   mcTree->SetBranchStatus("Multiplicity", 1);
@@ -147,14 +147,14 @@ void AddCalibrationFunction(std::string MC_file, std::string directory, std::map
   double Ener2_data, ESum2_data;
   Short_t Multiplicity_data;
   Short_t MultipletIndex_data;
-  int Channel_data, Detector_data, Layer_data;
+  Int_t Channel_data, Detector_data, Layer_data;
   
   mcTree->SetBranchAddress("Ener2", &Ener2_data);
   mcTree->SetBranchAddress("ESum2", &ESum2_data);
   mcTree->SetBranchAddress("Multiplicity", &Multiplicity_data);
   mcTree->SetBranchAddress("MultipletIndex", &MultipletIndex_data);
   mcTree->SetBranchAddress("Layer", &Layer_data);
-  int Dataset_data;
+  Int_t Dataset_data;
   bool Included_data;
   exclChTree->SetBranchAddress("Dataset", &Dataset_data);
   exclChTree->SetBranchAddress("Included", &Included_data);
@@ -168,7 +168,7 @@ void AddCalibrationFunction(std::string MC_file, std::string directory, std::map
   double Ener2, ESum2;
   Short_t Multiplicity;
   Short_t MultipletIndex;
-  int Channel, Detector, Layer;
+  Int_t Channel, Detector, Layer;
   
   outTree->Branch("Ener2", &Ener2, "Ener2/D");
   outTree->Branch("ESum2", &ESum2, "ESum2/D");
@@ -177,7 +177,7 @@ void AddCalibrationFunction(std::string MC_file, std::string directory, std::map
   outTree->Branch("Layer", &Layer, "Layer/I");
 
   // create output exclChTree
-  int Dataset;
+  Int_t Dataset;
   bool Included;
   outexclChTree->Branch("Dataset", &Dataset, "Dataset/I");
   outexclChTree->Branch("Included", &Included, "Included/O");
@@ -280,9 +280,9 @@ void AddCalibrationFunction(std::string MC_file, std::string directory, std::map
     ESum2 = ESum2_data;
     Multiplicity = Multiplicity_data;
     MultipletIndex = MultipletIndex_data;
-Layer = Layer_data;
+    Layer = Layer_data;
     Dataset = Dataset_data;
-    Included_data = Included_data;
+    Included = Included_data;
 
     outTree->Fill();
     outexclChTree->Fill();
@@ -293,6 +293,8 @@ Layer = Layer_data;
   std::cout << "\n";
   mcFile->Close();
   // Write the new output MC file
+  outTree->AddFriend(outexclChTree);
+  outTree->AddFriend(outFriendTree);
   outTree->Write();
   outexclChTree->Write();
   outFriendTree->Write();
