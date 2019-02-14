@@ -41,4 +41,4 @@ for mc_file in mc_file_list:
         os.mkdir(directory)
     except FileExistsError:
         pass
-    os.system("./AddCalibrationFunction_newfile " + mc_file + " " + str(args.number) + " " + str(args.split) + " " + directory)
+    os.system("./AddCalibrationFunction_doubletree " + mc_file + " " + str(args.number) + " " + str(args.split) + " " + directory)
